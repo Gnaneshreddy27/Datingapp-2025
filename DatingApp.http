@@ -1,0 +1,6 @@
+@DatingApp_HostAddress = 
+
+GET {{DatingApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
