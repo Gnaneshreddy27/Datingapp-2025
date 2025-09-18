@@ -15,6 +15,7 @@ builder.Services.AddDbContext<AppDBcontext>(opt =>
 {
     opt.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
+builder.Services.AddCors();
 builder.Services.AddControllers();
 var app = builder.Build();
 app.UseHttpsRedirection();
@@ -37,6 +38,8 @@ app.MapGet("/weatherforecast", () =>
     return forecast;
 })
 .WithName("GetWeatherForecast");
+app.UseCors(x => x.AllowAnyHeader().AllowAnyHeader()
+.WithOrigins("http://localhost:4200", "https://localhost:4200"));
 
 app.MapControllers();
 

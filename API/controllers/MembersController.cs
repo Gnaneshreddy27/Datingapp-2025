@@ -1,14 +1,11 @@
 using API.data;
 using API.entities;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace API.controllers
 {
-    [Route("api/[controller]")]//localhost:7202/api/members
-    [ApiController]
-    public class MembersController(AppDBcontext context) : ControllerBase
+    public class MembersController(AppDBcontext context) : BaseAPIController
     {
         [HttpGet]
 
