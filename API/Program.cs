@@ -1,27 +1,26 @@
 using System.Text;
 using API.data;
 using API.Interfaces;
+using API.Middleware;
 using API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-
-
-// Configure the HTTP request pipeline.
-//builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDBcontext>(opt =>
 {
     opt.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 builder.Services.AddCors();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IMemberRepository, MemberRepository>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -33,43 +32,46 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey)),
             ValidateIssuer = false,
             ValidateAudience = false,
-
         };
-
     });
+
 builder.Services.AddControllers();
+
 var app = builder.Build();
+
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// Specify the Angular browser build output path
+var angularDistPath = Path.Combine(builder.Environment.ContentRootPath, "client", "dist", "client");
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-app.UseCors(x => x.AllowAnyHeader().AllowAnyHeader()
-.WithOrigins("http://localhost:4200", "https://localhost:4200"));
+// Serve default files like index.html and static files from Angular build folder
+
+// Fallback route to serve Angular's index.html for client-side routes (e.g. /members, /members/:id)
+app.MapFallbackToFile("index.html"); 
+
+// Proper CORS setup
+app.UseMiddleware<ExceptionMiddleware>();
+app.UseCors(x => x.AllowAnyHeader().AllowAnyMethod()
+    .WithOrigins("http://localhost:4200", "https://localhost:4200"));
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+using var scope = app.Services.CreateScope();
+var services = scope.ServiceProvider;
+try
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    var context = services.GetRequiredService<AppDBcontext>();
+    await context.Database.MigrateAsync();
+    await Seed.SeedUsers(context);
 }
+catch (Exception ex)
+{
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "An error occurred during migration");
+}
+
+
+app.Run();
